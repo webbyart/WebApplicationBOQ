@@ -1,0 +1,10 @@
+{
+  "name": "CargoBOQ Pro",
+  "description": "ระบบบริหารคลังวัสดุและควบคุมงบประมาณโครงการ (BOQ Inventory & Project Budget Control System) สำหรับธุรกิจก่อสร้างและพัฒนาอสังหาริมทรัพย์",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
