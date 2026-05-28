@@ -74,9 +74,63 @@ export interface InventoryItem {
   warehouseId: string;
   qrCodeUrl?: string;
   imageUrl?: string;
+  itemType?: 'MATERIAL' | 'SERVICE'; // MATERIAL (สินค้า) or SERVICE (งานบริการ/ค่าแรง/ค่ารถ)
 }
 
 export type TransactionType = 'RECEIVE' | 'ISSUE' | 'RETURN' | 'ADJUST';
+
+export interface PRItem {
+  itemSku: string;
+  itemName: string;
+  itemType: 'MATERIAL' | 'SERVICE';
+  quantity: number;
+  unit: string;
+  estimatedPrice: number; // ราคาประเมินต่อหน่วย
+  isOutsideBOQ?: boolean;
+  receivedQuantity?: number; // จำนวนที่รับแล้ว
+}
+
+export interface PurchaseRequisition {
+  id: string; // e.g. PR-2026-001
+  date: string;
+  type: 'PR' | 'SR'; // PR = ขอซื้อสินค้า, SR = ขอจ้างบริการ (ค่าแรง/ค่ารถ/บริการอื่นๆ)
+  projectCode: string;
+  boqCode?: string;
+  requester: string;
+  purpose: string;
+  items: PRItem[];
+  totalAmount: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'PARTIALLY_RECEIVED';
+  approvedBy?: string;
+  approvedDate?: string;
+  approverNote?: string;
+  isOutsideBOQ?: boolean;
+}
+
+export interface MultiItemIssueItem {
+  itemSku: string;
+  itemName: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  costPrice: number;
+  isOutsideBOQ?: boolean;
+}
+
+export interface MultiItemIssueRequest {
+  id: string; // e.g. REQ-2026-001
+  date: string;
+  projectCode: string;
+  boqCode?: string;
+  requester: string;
+  purpose: string;
+  items: MultiItemIssueItem[];
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  approvedBy?: string;
+  approvedDate?: string;
+  approverNote?: string;
+  signature?: string; // base64 signature
+}
 
 export interface Transaction {
   id: string;

@@ -201,6 +201,195 @@ export const INITIAL_ITEMS: InventoryItem[] = [
     storageLocation: 'WH01-K1',
     warehouseId: 'WH01',
     qrCodeUrl: 'FIN-002-QR',
+    itemType: 'MATERIAL'
+  },
+  {
+    sku: 'SVC-001',
+    name: 'งานค่าแรงปูกระเบื้องแกรนิตโต้ชั้น 1-3',
+    category: 'งานตกแต่งผิว',
+    unit: 'ตร.ม.',
+    costPrice: 180,
+    standardPrice: 200,
+    stockLeft: 0,
+    minStock: 0,
+    latestSupplier: 'ผู้รับเหมาช่วง ยอดฝีมือการสร้าง',
+    storageLocation: 'N/A',
+    warehouseId: 'WH01',
+    itemType: 'SERVICE'
+  },
+  {
+    sku: 'SVC-002',
+    name: 'งานรถสิบล้อม้วนขนดินถมโครงสร้างรากฐาน',
+    category: 'งานโครงสร้าง',
+    unit: 'เที่ยว',
+    costPrice: 1200,
+    standardPrice: 1350,
+    stockLeft: 0,
+    minStock: 0,
+    latestSupplier: 'บจก. ธนทรานสปอร์ต เครือข่าย',
+    storageLocation: 'N/A',
+    warehouseId: 'WH01',
+    itemType: 'SERVICE'
+  },
+  {
+    sku: 'SVC-003',
+    name: 'งานจ้างตอกเสาเข็มไอ 26 (ลึก 21 เมตร)',
+    category: 'งานโครงสร้าง',
+    unit: 'ต้น',
+    costPrice: 9500,
+    standardPrice: 11000,
+    stockLeft: 0,
+    minStock: 0,
+    latestSupplier: 'บจก. คอนกรีตตอกเสาเข็มสยาม',
+    storageLocation: 'N/A',
+    warehouseId: 'WH01',
+    itemType: 'SERVICE'
+  }
+];
+
+// Initial Purchase/Service Requisitions
+import { PurchaseRequisition, MultiItemIssueRequest } from './types';
+
+export const INITIAL_PRS: PurchaseRequisition[] = [
+  {
+    id: 'PR-2026-001',
+    date: '2026-05-26T08:30:00Z',
+    type: 'PR',
+    projectCode: 'PRJ-2026-01',
+    boqCode: 'BOQ-101-STR',
+    requester: 'วิศวกรสมศักดิ์ รักไทย',
+    purpose: 'สั่งเหล็กเส้นเพื่อเดินงานคานคอดินชั้น 2 ด่วน',
+    items: [
+      {
+        itemSku: 'CON-002',
+        itemName: 'เหล็กเส้นกลม SR24 ขนาด 9 มม.',
+        itemType: 'MATERIAL',
+        quantity: 150,
+        unit: 'เส้น',
+        estimatedPrice: 125,
+        isOutsideBOQ: false,
+        receivedQuantity: 0
+      }
+    ],
+    totalAmount: 18750,
+    status: 'APPROVED',
+    approvedBy: 'ศิริชัย อนุมัติวาณิช (Approver)',
+    approvedDate: '2026-05-26T10:15:00Z',
+    approverNote: 'อนุมัติจัดส่งด่วนตามสิทธิ์งบปกติใน BOQ'
+  },
+  {
+    id: 'SR-2026-001',
+    date: '2026-05-27T09:00:00Z',
+    type: 'SR',
+    projectCode: 'PRJ-2026-01',
+    boqCode: 'BOQ-101-STR',
+    requester: 'วิศวกรสมศักดิ์ รักไทย',
+    items: [
+      {
+        itemSku: 'SVC-002',
+        itemName: 'งานรถสิบล้อม้วนขนดินถมโครงสร้างรากฐาน',
+        itemType: 'SERVICE',
+        quantity: 30,
+        unit: 'เที่ยว',
+        estimatedPrice: 1350,
+        isOutsideBOQ: false,
+        receivedQuantity: 0
+      }
+    ],
+    totalAmount: 40500,
+    status: 'PENDING',
+    purpose: 'งานถมหน้าดินบดอัดเริ่มตอกเสาเข็มเพิ่ม'
+  },
+  {
+    id: 'PR-2026-002',
+    date: '2026-05-27T14:20:00Z',
+    type: 'PR',
+    projectCode: 'PRJ-2026-02',
+    requester: 'วิศวกรธัญญา มีธรรม',
+    purpose: 'งานตกแต่งเพิ่มเติม นอกงบประมาณโครงการเพื่ออำนวยความสะดวกเจ้าของบ้าน',
+    items: [
+      {
+        itemSku: 'FIN-001',
+        itemName: 'สีกัลวาไนซ์ โจตัน (Jotun) สีเทา (3.6 ลิตร)',
+        itemType: 'MATERIAL',
+        quantity: 10,
+        unit: 'ถัง',
+        estimatedPrice: 700,
+        isOutsideBOQ: true,
+        receivedQuantity: 0
+      }
+    ],
+    totalAmount: 7000,
+    status: 'APPROVED',
+    approvedBy: 'ศิริชัย อนุมัติวาณิช (Approver)',
+    approvedDate: '2026-05-27T16:00:00Z',
+    approverNote: 'อนุมัติเนื่องจากเป็นความต้องการเปลี่ยนสีกำแพงเสริมจากลูกค้าโดยตรง (คิดเงินแยกบิล)'
+  }
+];
+
+// Initial Multi-item issue requisitions
+export const INITIAL_MULTI_REQS: MultiItemIssueRequest[] = [
+  {
+    id: 'REQ-2026-001',
+    date: '2026-05-26T11:45:00Z',
+    projectCode: 'PRJ-2026-01',
+    boqCode: 'BOQ-101-STR',
+    requester: 'ช่างสมชาย ช่างเขียน',
+    purpose: 'เบิกของไปเข้าแบบแผ่นพื้น ตึก A ชั้น 1',
+    items: [
+      {
+        itemSku: 'CON-001',
+        itemName: 'ปูนซิเมนต์ถุงมิล่า (50 กก.)',
+        category: 'งานโครงสร้าง',
+        quantity: 25,
+        unit: 'ถุง',
+        costPrice: 155,
+        isOutsideBOQ: false
+      },
+      {
+        itemSku: 'CON-002',
+        itemName: 'เหล็กเส้นกลม SR24 ขนาด 9 มม.',
+        category: 'งานโครงสร้าง',
+        quantity: 40,
+        unit: 'เส้น',
+        costPrice: 110,
+        isOutsideBOQ: false
+      }
+    ],
+    status: 'APPROVED',
+    approvedBy: 'สุรวุฒิ สิทธิโกศล (Super Admin)',
+    approvedDate: '2026-05-26T13:00:00Z',
+    approverNote: 'จัดส่งได้ทันทีตามแผนหน้างาน',
+    signature: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+  },
+  {
+    id: 'REQ-2026-002',
+    date: '2026-05-27T10:30:00Z',
+    projectCode: 'PRJ-2026-01',
+    boqCode: 'BOQ-101-ELE',
+    requester: 'สมชาย ช่างเขียน',
+    items: [
+      {
+        itemSku: 'ELE-001',
+        itemName: 'สายไฟ VAF 2x2.5 Sq.mm. (100 เมตร)',
+        category: 'งานไฟฟ้า',
+        quantity: 3,
+        unit: 'ม้วน',
+        costPrice: 950,
+        isOutsideBOQ: true
+      },
+      {
+        itemSku: 'ELE-002',
+        itemName: 'ท่อร้อยสายไฟ PVC สีเหลือง ขนาด 1/2 นิ้ว',
+        category: 'งานไฟฟ้า',
+        quantity: 15,
+        unit: 'เส้น',
+        costPrice: 28,
+        isOutsideBOQ: false
+      }
+    ],
+    status: 'PENDING',
+    purpose: 'เบิกชดเชยส่วนขยายระบบเซ็นเซอร์นอกแผนงานแบบสัญญาย่อย'
   }
 ];
 

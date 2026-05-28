@@ -12,7 +12,9 @@ import {
   BOQItem,
   Transaction, 
   AuditLog, 
-  LineNotification 
+  LineNotification,
+  PurchaseRequisition,
+  MultiItemIssueRequest
 } from './types';
 import { 
   ROLE_PERMISSIONS, 
@@ -22,7 +24,9 @@ import {
   INITIAL_BOQS, 
   INITIAL_TRANSACTIONS, 
   INITIAL_AUDIT_LOGS, 
-  INITIAL_LINE_MESSAGES 
+  INITIAL_LINE_MESSAGES,
+  INITIAL_PRS,
+  INITIAL_MULTI_REQS
 } from './data';
 
 // Component Imports
@@ -35,6 +39,8 @@ import LineSimulator from './components/LineSimulator';
 import AuditLogs from './components/AuditLogs';
 import AIForecasting from './components/AIForecasting';
 import ProjectBOQReports from './components/ProjectBOQReports';
+import PRREngine from './components/PRREngine';
+import MultiItemRequisition from './components/MultiItemRequisition';
 
 // Icons
 import { 
@@ -64,6 +70,8 @@ import {
   ArrowUpRight,
   HelpCircle,
   CheckCircle,
+  Truck,
+  FileSpreadsheet,
   Clock
 } from 'lucide-react';
 
@@ -130,6 +138,16 @@ export default function App() {
     return local ? JSON.parse(local) : INITIAL_BOQS;
   });
 
+  const [prs, setPrs] = useState<PurchaseRequisition[]>(() => {
+    const local = localStorage.getItem('cargoboq_prs');
+    return local ? JSON.parse(local) : INITIAL_PRS;
+  });
+
+  const [multiReqs, setMultiReqs] = useState<MultiItemIssueRequest[]>(() => {
+    const local = localStorage.getItem('cargoboq_multi_reqs');
+    return local ? JSON.parse(local) : INITIAL_MULTI_REQS;
+  });
+
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const local = localStorage.getItem('cargoboq_transactions');
     return local ? JSON.parse(local) : INITIAL_TRANSACTIONS;
@@ -164,6 +182,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('cargoboq_boqs', JSON.stringify(boqs));
   }, [boqs]);
+
+  useEffect(() => {
+    localStorage.setItem('cargoboq_prs', JSON.stringify(prs));
+  }, [prs]);
+
+  useEffect(() => {
+    localStorage.setItem('cargoboq_multi_reqs', JSON.stringify(multiReqs));
+  }, [multiReqs]);
 
   useEffect(() => {
     localStorage.setItem('cargoboq_transactions', JSON.stringify(transactions));
@@ -220,6 +246,216 @@ export default function App() {
       device: 'Chrome v125 / Windows 11'
     };
     setAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  // PR / SR (Requisitions & Hirings) Operations Handlers
+  const handleAddPR = (pr: PurchaseRequisition) => {
+    setPrs(prev => [pr, ...prev]);
+    addAuditLog(`ร่างใบพิจารณาเสนอขอจัด${pr.type === 'PR' ? 'ซื้อวัสดุ' : 'จ้างบริการ'}: ${pr.id} สำหรับโครงการ ${pr.projectCode}`);
+    pushLineNotification(
+      pr.isOutsideBOQ ? 'OVER_BOQ' : 'RECEIVE',
+      `📄 มีการเสนอขอจัด${pr.type === 'PR' ? 'ซื้อพัสดุ (PR)' : 'จ้างงานบริการ (SR)'} ใหม่!\nเลขใบตราคลัง: ${pr.id}\nโครงการ: ${pr.projectCode}\nผู้ขอเบิก: ${pr.requester}\nรายละเอียดความประสงค์: ${pr.purpose.substring(0, 32)}...\nประมาณเงิน: ฿${pr.totalAmount.toLocaleString()}\nสถานะ: รอผลอนุมัติสิทธิ์ (PENDING)`
+    );
+  };
+
+  const handleUpdatePR = (id: string, updated: PurchaseRequisition) => {
+    setPrs(prev => prev.map(p => p.id === id ? updated : p));
+    addAuditLog(`อัปเดตสิทธิ์เปลี่ยนสถานะใบขอจัดจัดสั่ง: ${id} เป็นสถานะ [${updated.status}]`);
+    
+    if (updated.status === 'APPROVED' || updated.status === 'REJECTED') {
+      pushLineNotification(
+        'RECEIVE',
+        `🔔 ผลการอนุมัติสรุปการจัดซื้อจ้าง ${id}:\nสถานะ: ${updated.status === 'APPROVED' ? '🟢 อนุมัติจัดทำแล้ว' : '🔴 ปฏิเสธเอกสาร'}\nโดยผู้อนุมัติ: ${updated.approvedBy}\nบันทึกความเห็น: ${updated.approverNote || '-'}`
+      );
+    }
+  };
+
+  const handleCommitReceiveItems = (prId: string, itemsToReceive: { sku: string; qty: number; costPrice: number }[]) => {
+    // A. Update item stock quantities in main catalog storage
+    setItems(prevItems => {
+      return prevItems.map(item => {
+        const matchingRec = itemsToReceive.find(rec => rec.sku === item.sku);
+        if (matchingRec) {
+          return {
+            ...item,
+            stockLeft: item.stockLeft + matchingRec.qty
+          };
+        }
+        return item;
+      });
+    });
+
+    // B. Build and commit specific Receive Transaction logs
+    const generatedTransactions: Transaction[] = [];
+    itemsToReceive.forEach(rec => {
+      const prObj = prs.find(p => p.id === prId);
+      const targetItem = items.find(i => i.sku === rec.sku);
+      const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+      
+      const tx: Transaction = {
+        id: txId,
+        date: new Date().toISOString(),
+        type: 'RECEIVE',
+        projectCode: prObj?.projectCode || 'GEN-PRJ',
+        boqCode: prObj?.boqCode,
+        itemSku: rec.sku,
+        itemName: targetItem?.name || rec.sku,
+        category: targetItem?.category || 'งานพัสดุรับเข้า',
+        quantity: rec.qty,
+        unit: targetItem?.unit || 'หน่วย',
+        costPrice: rec.costPrice,
+        operator: currentUserName,
+        status: 'APPROVED',
+        reason: `รับวัสดุเชื่อมโยงใบขอจัดซื้อ #${prId}`
+      };
+      
+      generatedTransactions.push(tx);
+      
+      // Update the used limits in the BOQ
+      if (prObj?.boqCode) {
+        setBoqs(prevBoqs => prevBoqs.map(boq => {
+          if (boq.code === prObj.boqCode) {
+            return {
+              ...boq,
+              items: boq.items.map(bi => {
+                if (bi.itemSku === rec.sku) {
+                  return {
+                    ...bi,
+                    usedQuantity: bi.usedQuantity + rec.qty
+                  };
+                }
+                return bi;
+              })
+            };
+          }
+          return boq;
+        }));
+      }
+    });
+
+    setTransactions(prev => [...generatedTransactions, ...prev]);
+
+    // C. Synchronize item received indicators in the PR records list
+    setPrs(prevPrs => {
+      return prevPrs.map(p => {
+        if (p.id === prId) {
+          const updatedItems = p.items.map(item => {
+            const matchingRec = itemsToReceive.find(rec => rec.sku === item.itemSku);
+            if (matchingRec) {
+              const currentRec = item.receivedQuantity || 0;
+              return {
+                ...item,
+                receivedQuantity: currentRec + matchingRec.qty
+              };
+            }
+            return item;
+          });
+
+          const isAllReceived = updatedItems.every(i => (i.receivedQuantity || 0) >= i.quantity);
+          const status = isAllReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
+
+          return {
+            ...p,
+            items: updatedItems,
+            status: status as any
+          };
+        }
+         return p;
+      });
+    });
+
+    addAuditLog(`ตรวจรับพัสดุหลักจำนวน ${itemsToReceive.length} รายการและ realizations เข้าระบบคลังผูกสัญญากลางเชื่อม PR #${prId}`);
+    pushLineNotification('RECEIVE', `📦 ดำเนินการรับเข้าคลังสินค้า!\nรหัสตั๋วขอซื้อ: #${prId}\nจัดรับตามงวด: ${itemsToReceive.map(i => `${i.sku} (${i.qty} ชิ้น)`).join(', ')}`);
+  };
+
+  // Multi-item Requisition (ขอเบิกหลายรายการ) Handler Functions
+  const handleAddMultiReq = (req: MultiItemIssueRequest) => {
+    setMultiReqs(prev => [req, ...prev]);
+    addAuditLog(`สร้างแบบร่างขอร่วมเบิกพัสดุกลุ่มใบใหม่สำเร็จ: #${req.id}`);
+    pushLineNotification(
+      'ISSUE',
+      `📄 เสนอขอส่งจ่ายพัสดุกลุ่มหน้างานใหม่!\nเลขที่แบบขอ: #${req.id}\nผู้เสนอ: ${req.requester}\nพื้นที่โครงการ: ${req.projectCode}\nจำนวนที่ร้องเบิก: ${req.items.length} รายการพัสดุก่อสร้าง`
+    );
+  };
+
+  const handleUpdateMultiReq = (id: string, updated: MultiItemIssueRequest) => {
+    setMultiReqs(prev => prev.map(r => r.id === id ? updated : r));
+    addAuditLog(`เปลี่ยนแปลสิทธิ์สถานะตั๋วขอเบิกหมู่: ${id} มีสถานะเป็น [${updated.status}]`);
+    
+    if (updated.status === 'REJECTED') {
+      pushLineNotification(
+        'ISSUE',
+        `🚨 ปฏิเสธไม่อนุมัติการร่วมเบิกเป็นกลุ่มสำหรับ ${id}\nผู้อนุมัติ: ${updated.approvedBy}\nเหตุผลผลชี้ขาด: ${updated.approverNote || '-'}`
+      );
+    }
+  };
+
+  const handleCommitIssueMultiple = (req: MultiItemIssueRequest) => {
+    // A. Deduct item inventory stocks
+    setItems(prevItems => {
+      return prevItems.map(item => {
+        const matchingReqItem = req.items.find(ri => ri.itemSku === item.sku);
+        if (matchingReqItem) {
+          return {
+            ...item,
+            stockLeft: Math.max(0, item.stockLeft - matchingReqItem.quantity)
+          };
+        }
+        return item;
+      });
+    });
+
+    // B. Commit Issue type Transaction logs
+    const generatedTransactions: Transaction[] = [];
+    req.items.forEach(item => {
+      const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+      const tx: Transaction = {
+        id: txId,
+        date: new Date().toISOString(),
+        type: 'ISSUE',
+        projectCode: req.projectCode,
+        boqCode: req.boqCode,
+        itemSku: item.itemSku,
+        itemName: item.itemName,
+        category: item.category || 'งานย่อยโครงสร้าง',
+        quantity: item.quantity,
+        unit: item.unit,
+        costPrice: item.costPrice,
+        operator: currentUserName,
+        status: 'APPROVED',
+        reason: `เบิกจ่ายผ่านใบเบิกพัสดุรวม #${req.id}`
+      };
+      generatedTransactions.push(tx);
+
+      // Handle BOQ items statistics updates of what is spent
+      if (req.boqCode) {
+        setBoqs(prevBoqs => prevBoqs.map(boq => {
+          if (boq.code === req.boqCode) {
+            return {
+              ...boq,
+              items: boq.items.map(bi => {
+                if (bi.itemSku === item.itemSku) {
+                  return {
+                    ...bi,
+                    usedQuantity: bi.usedQuantity + item.quantity
+                  };
+                }
+                return bi;
+              })
+            };
+          }
+          return boq;
+        }));
+      }
+    });
+
+    setTransactions(prev => [...generatedTransactions, ...prev]);
+
+    // C. Lock status in requests list
+    setMultiReqs(prev => prev.map(r => r.id === req.id ? req : r));
+
+    addAuditLog(`อนุมัติใบเสนอร่วมเบิกจ่ายพัสดุกลุ่มหน้างานย่อยสำเร็จ #${req.id} จ่ายออก: ${req.items.length} รายการพัสดุ`);
+    pushLineNotification('ISSUE', `📦 อนุมัติจัดจ่ายพัสดุมือเรียบร้อย!\nเลขที่อ้างอิง: #${req.id}\nโครงการ: ${req.projectCode}\nของที่นำจ่าย: ${req.items.map(i => `${i.itemName} (${i.quantity} ${i.unit})`).join(', ')}`);
   };
 
   // Handler helpers
@@ -864,6 +1100,52 @@ export default function App() {
                 {!isSidebarCollapsed && <span>บันทึกเติม/ดึงวัสดุ (Log Forms)</span>}
               </button>
 
+              {/* Purchase/Service Requisition (PR/SR) */}
+              <button
+                onClick={() => { setActiveTab('pr'); setIsMobileMenuOpen(false); }}
+                className={`w-full text-left p-2.5 rounded-lg text-xs font-semibold flex items-center transition-all cursor-pointer ${
+                  activeTab === 'pr' 
+                    ? 'bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-orange-400 font-bold border-l-4 border-blue-600 dark:border-orange-500' 
+                    : 'text-slate-655 hover:bg-slate-50 hover:text-slate-905 dark:text-slate-400 dark:hover:bg-slate-850 hover:text-slate-900 dark:hover:text-white'
+                } ${isSidebarCollapsed ? 'justify-center p-3' : 'gap-3'}`}
+                title="ระบบขอจัดซื้อจัดจ้าง (PR/SR)"
+              >
+                <Truck className="h-4.5 w-4.5 shrink-0 text-emerald-500 animate-pulse" />
+                {!isSidebarCollapsed && (
+                  <div className="flex items-center justify-between w-full">
+                    <span>ตั๋วขอซื้อขอจ้าง (PR/SR Desk)</span>
+                    {prs.filter(p => p.status === 'PENDING').length > 0 && (
+                      <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-[9px] font-bold px-1.5 py-0.2 rounded-full font-mono">
+                        {prs.filter(p => p.status === 'PENDING').length}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+
+              {/* Multi-Item Requisition */}
+              <button
+                onClick={() => { setActiveTab('multireq'); setIsMobileMenuOpen(false); }}
+                className={`w-full text-left p-2.5 rounded-lg text-xs font-semibold flex items-center transition-all cursor-pointer ${
+                  activeTab === 'multireq' 
+                    ? 'bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-orange-400 font-bold border-l-4 border-blue-600 dark:border-orange-500' 
+                    : 'text-slate-655 hover:bg-slate-50 hover:text-slate-905 dark:text-slate-400 dark:hover:bg-slate-850 hover:text-slate-900 dark:hover:text-white'
+                } ${isSidebarCollapsed ? 'justify-center p-3' : 'gap-3'}`}
+                title="ระบบเสนอขอเบิกพัสดุก่อสร้างรวมหลายรายการ"
+              >
+                <FileSpreadsheet className="h-4.5 w-4.5 shrink-0 text-indigo-550 dark:text-indigo-400" />
+                {!isSidebarCollapsed && (
+                  <div className="flex items-center justify-between w-full">
+                    <span>เบิกของทีละหลายชิ้น (Multi-Slip)</span>
+                    {multiReqs.filter(r => r.status === 'PENDING').length > 0 && (
+                      <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-[9px] font-bold px-1.5 py-0.2 rounded-full font-mono">
+                        {multiReqs.filter(r => r.status === 'PENDING').length}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+
               {/* Mobile Scanner Simulator */}
               <button
                 onClick={() => { setActiveTab('scanner'); setIsMobileMenuOpen(false); }}
@@ -1093,6 +1375,35 @@ export default function App() {
                   boqs={boqs} 
                   transactions={transactions} 
                   canViewCost={permission.canViewCost}
+                />
+              )}
+
+              {activeTab === 'pr' && (
+                <PRREngine 
+                  projects={projects}
+                  boqs={boqs}
+                  items={items}
+                  prs={prs}
+                  currentRole={currentRole}
+                  currentUserName={currentUserName}
+                  canViewCost={permission.canViewCost}
+                  onAddPR={handleAddPR}
+                  onUpdatePR={handleUpdatePR}
+                  onCommitReceiveItems={handleCommitReceiveItems}
+                />
+              )}
+
+              {activeTab === 'multireq' && (
+                <MultiItemRequisition 
+                  projects={projects}
+                  boqs={boqs}
+                  items={items}
+                  multiReqs={multiReqs}
+                  currentRole={currentRole}
+                  currentUserName={currentUserName}
+                  onAddMultiReq={handleAddMultiReq}
+                  onUpdateMultiReq={handleUpdateMultiReq}
+                  onCommitIssueMultiple={handleCommitIssueMultiple}
                 />
               )}
 
